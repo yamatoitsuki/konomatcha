@@ -962,9 +962,21 @@ function getYesterdayDateStr(){
 }
 
 function saveShopSettings(){
-  // Always record the date the shop was last set open, so we can auto-close on new days / past closing time
   const savedDate = state.shopOpen ? getTodayDateStr() : (state.shopOpenDate || '');
   state.shopOpenDate = savedDate;
+  // Save to Firestore (shared across all devices)
+  if(window._db){
+    try{
+      window._firestoreSetDoc(window._firestoreDoc(window._db,'shop','settings'),{
+        shopOpen:state.shopOpen,
+        openTime:state.openTime,
+        closeTime:state.closeTime,
+        blockedSlots:state.blockedSlots,
+        shopOpenDate:savedDate
+      });
+    }catch(e){ console.warn('Firestore write failed',e); }
+  }
+  // Also keep localStorage as fallback
   localStorage.setItem('konoShopSettings',JSON.stringify({
     shopOpen:state.shopOpen,
     openTime:state.openTime,
@@ -974,57 +986,64 @@ function saveShopSettings(){
   }));
 }
 
-function loadShopSettings(){
-  try{
-    const saved=JSON.parse(localStorage.getItem('konoShopSettings')||'{}');
-    if(saved.openTime)state.openTime=saved.openTime;
-    if(saved.closeTime)state.closeTime=saved.closeTime;
-    if(Array.isArray(saved.blockedSlots))state.blockedSlots=saved.blockedSlots;
-    if(saved.shopOpenDate)state.shopOpenDate=saved.shopOpenDate;
+function applyShopData(saved){
+  // Core function that applies loaded settings to state and re-renders
+  if(saved.openTime)state.openTime=saved.openTime;
+  if(saved.closeTime)state.closeTime=saved.closeTime;
+  if(Array.isArray(saved.blockedSlots))state.blockedSlots=saved.blockedSlots;
+  if(saved.shopOpenDate)state.shopOpenDate=saved.shopOpenDate;
 
-    // Determine if shop should actually be open right now
-    let shouldBeOpen = (typeof saved.shopOpen==='boolean') ? saved.shopOpen : false;
+  let shouldBeOpen = (typeof saved.shopOpen==='boolean') ? saved.shopOpen : false;
 
-    if(shouldBeOpen){
-      const today=getTodayDateStr();
-      const now=new Date();
-      const nowMins=now.getHours()*60+now.getMinutes();
-      const openMins=timeToMin(state.openTime);
-      const closeMins=timeToMin(state.closeTime);
-      const isMidnightCrossing=Number.isFinite(closeMins)&&Number.isFinite(openMins)&&closeMins<openMins;
+  if(shouldBeOpen){
+    const today=getTodayDateStr();
+    const now=new Date();
+    const nowMins=now.getHours()*60+now.getMinutes();
+    const openMins=timeToMin(state.openTime);
+    const closeMins=timeToMin(state.closeTime);
+    const isMidnightCrossing=Number.isFinite(closeMins)&&Number.isFinite(openMins)&&closeMins<openMins;
 
-      if(isMidnightCrossing){
-        const yesterday=getYesterdayDateStr();
-        if(!saved.shopOpenDate){
-          shouldBeOpen=false;
-        } else if(saved.shopOpenDate===today){
-          // Opened today (pre-midnight portion) — auto-close only if we've
-          // already crossed midnight AND gone past closing time
-          if(nowMins<openMins && nowMins>closeMins) shouldBeOpen=false;
-        } else if(saved.shopOpenDate===yesterday){
-          // Opened yesterday — normal for a midnight-crossing shop
-          // Auto-close once we've passed the closing time today
-          if(nowMins>closeMins) shouldBeOpen=false;
-        } else {
-          shouldBeOpen=false; // opened too long ago
-        }
+    if(isMidnightCrossing){
+      const yesterday=getYesterdayDateStr();
+      if(!saved.shopOpenDate){
+        shouldBeOpen=false;
+      } else if(saved.shopOpenDate===today){
+        if(nowMins<openMins && nowMins>closeMins) shouldBeOpen=false;
+      } else if(saved.shopOpenDate===yesterday){
+        if(nowMins>closeMins) shouldBeOpen=false;
       } else {
-        // Normal (non-midnight-crossing) auto-close
-        if(saved.shopOpenDate && saved.shopOpenDate!==today){
-          shouldBeOpen=false;
-        } else if(Number.isFinite(closeMins) && nowMins>closeMins){
-          shouldBeOpen=false;
-        }
+        shouldBeOpen=false;
+      }
+    } else {
+      if(saved.shopOpenDate && saved.shopOpenDate!==today){
+        shouldBeOpen=false;
+      } else if(Number.isFinite(closeMins) && nowMins>closeMins){
+        shouldBeOpen=false;
       }
     }
+  }
 
-    state.shopOpen = shouldBeOpen;
+  const wasOpen = state.shopOpen;
+  state.shopOpen = shouldBeOpen;
 
-    // If auto-closed, persist so admin sees correct state too
-    if(!shouldBeOpen && saved.shopOpen){
-      saveShopSettings();
-    }
+  // If auto-closed, persist
+  if(!shouldBeOpen && saved.shopOpen){
+    saveShopSettings();
+  }
+
+  renderLanding();
+  renderCart();
+  if(state.adminLoggedIn) renderAdmin();
+  if(state.screen==='slotScreen') renderSlots();
+}
+
+function loadShopSettings(){
+  // Load from localStorage first as instant fallback
+  try{
+    const saved=JSON.parse(localStorage.getItem('konoShopSettings')||'{}'  );
+    if(Object.keys(saved).length) applyShopData(saved);
   }catch(e){}
+  // Firestore real-time listener set up in initFirebase()
 }
 
 function renderLanding(){
@@ -1124,18 +1143,6 @@ function confirmReinstateAll(){
   if(!Array.isArray(state.blockedSlots)) state.blockedSlots=[];
   state.blockedSlots=[];
   saveShopSettings();
-  try{
-    const saved=JSON.parse(localStorage.getItem('konoShopSettings')||'{}');
-    saved.blockedSlots=[];
-    localStorage.setItem('konoShopSettings',JSON.stringify(saved));
-  }catch(err){
-    localStorage.setItem('konoShopSettings',JSON.stringify({
-      shopOpen:state.shopOpen,
-      openTime:state.openTime,
-      closeTime:state.closeTime,
-      blockedSlots:[]
-    }));
-  }
   renderAdminSlotManager();
   renderAdmin();
   if(state.screen==='slotScreen') renderSlots();
@@ -1198,6 +1205,47 @@ loadShopSettings();
 renderLanding();
 renderCart();
 updateAdminFab();
+
+// ── Firebase Firestore real-time sync ─────────────────────────────────────
+async function initFirebase(){
+  try{
+    const { initializeApp } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js');
+    const { getFirestore, doc, setDoc, onSnapshot } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyCqjM28LhfQObB-uWyJtcw1B1JJs-uW6wY",
+      authDomain: "konomatcha-be5d4.firebaseapp.com",
+      projectId: "konomatcha-be5d4",
+      storageBucket: "konomatcha-be5d4.firebasestorage.app",
+      messagingSenderId: "811781146139",
+      appId: "1:811781146139:web:cc08ce10314914c8995abe"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    // Expose helpers so saveShopSettings() can use them
+    window._db = db;
+    window._firestoreDoc = doc;
+    window._firestoreSetDoc = setDoc;
+
+    // Real-time listener — fires instantly whenever admin changes anything
+    onSnapshot(doc(db,'shop','settings'), (snap) => {
+      if(snap.exists()){
+        const data = snap.data();
+        // Also update localStorage cache
+        localStorage.setItem('konoShopSettings', JSON.stringify(data));
+        applyShopData(data);
+      }
+    });
+
+    console.log('Firebase connected ✓');
+  }catch(e){
+    console.warn('Firebase init failed, running in offline mode:', e);
+  }
+}
+
+initFirebase();
 </script>
 
 
