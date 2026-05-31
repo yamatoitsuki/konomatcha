@@ -992,7 +992,30 @@ function submitOrder(){
   state.blockedSlots=[...new Set([...state.blockedSlots,...slotsToBlock])];
   saveShopSettings();
   state.receiptNumber=generateReceiptNumber();
+  sendTelegramNotification();
   updateFinalCustomerName();goTo('finalScreen');
+}
+
+async function sendTelegramNotification(){
+  try{
+    const BOT_TOKEN='8583908845:AAGpWUn_WhtnZPWl9799MHaYtpjHp3yCAjw';
+    const CHAT_ID='337996001';
+    const items=state.cart.map(i=>'  - '+i.qty+'x '+i.item+' ('+i.milkName+') - $'+(i.qty*i.price).toFixed(2)).join('\n');
+    const name=state.customerName||'Customer';
+    const msg=
+      'New Order #'+state.receiptNumber+'\n'+
+      'Customer: '+name+'\n\n'+
+      'Order:\n'+items+'\n\n'+
+      'Pickup: '+state.slot+'\n'+
+      'Total: $'+cartTotal().toFixed(2);
+    await fetch('https://api.telegram.org/bot'+BOT_TOKEN+'/sendMessage',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({chat_id:CHAT_ID,text:msg})
+    });
+  }catch(e){
+    console.warn('Telegram notification failed:',e);
+  }
 }
 
 function generateReceiptNumber(){
