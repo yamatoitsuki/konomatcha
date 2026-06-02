@@ -945,21 +945,21 @@ async function applyDiscountCode(){
   }
   if(msg){msg.textContent='Checking code...';msg.style.display='block';msg.style.color='var(--muted)';}
 
-  // If no firebase yet, try local codes
-  const codes=state.discountCodes||{};
+  // Always fetch fresh from Firestore to get accurate usage count
   let found=null;
-  if(codes[code]) found=codes[code];
-
-  if(!found && window._db){
+  if(window._db && window._firestoreGetDoc && window._firestoreDoc){
     try{
-      const {doc,getDoc}=await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
-      const snap=await getDoc(doc(window._db,'shop','discountCodes'));
+      const snap=await window._firestoreGetDoc(window._firestoreDoc(window._db,'shop','discountCodes'));
       if(snap.exists()){
         const data=snap.data();
-        state.discountCodes=data;
+        state.discountCodes=data; // update cache with fresh data
         if(data[code]) found=data[code];
       }
     }catch(e){console.warn('discount fetch failed',e);}
+  } else {
+    // Fallback to cache if Firebase not ready
+    const codes=state.discountCodes||{};
+    if(codes[code]) found=codes[code];
   }
 
   if(!found){
@@ -975,7 +975,7 @@ async function applyDiscountCode(){
   const usedToday=getTodayUsage(found);
   if(found.dailyLimit>0 && usedToday>=found.dailyLimit){
     state.discountCode=null;state.discountPercent=0;
-    if(msg){msg.textContent='This code has reached its daily limit.';msg.style.display='block';msg.style.color='#c0392b';}
+    if(msg){msg.textContent='This code has reached its daily limit of '+found.dailyLimit+' use'+(found.dailyLimit===1?'':'s')+' today.';msg.style.display='block';msg.style.color='#c0392b';}
     renderReview();return;
   }
   // Valid!
@@ -1006,11 +1006,10 @@ function removeDiscountCode(){
 }
 
 async function recordDiscountUsage(code){
-  if(!code||!window._db) return;
+  if(!code||!window._db||!window._firestoreGetDoc||!window._firestoreSetDoc||!window._firestoreDoc) return;
   try{
-    const {doc,getDoc,setDoc}=await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
-    const ref=doc(window._db,'shop','discountCodes');
-    const snap=await getDoc(ref);
+    const ref=window._firestoreDoc(window._db,'shop','discountCodes');
+    const snap=await window._firestoreGetDoc(ref);
     if(!snap.exists()) return;
     const data=snap.data();
     if(!data[code]) return;
@@ -1022,8 +1021,9 @@ async function recordDiscountUsage(code){
       receipt:state.receiptNumber||'',
       time:new Date().toLocaleTimeString('en-SG',{hour:'2-digit',minute:'2-digit'})
     });
-    await setDoc(ref,data);
+    await window._firestoreSetDoc(ref,data);
     state.discountCodes=data;
+    console.log('Discount usage recorded for',code);
   }catch(e){console.warn('recordDiscountUsage failed',e);}
 }
 
@@ -1608,21 +1608,19 @@ function switchDiscTab(tab){
 }
 
 async function loadDiscountCodes(){
-  if(!window._db) return {};
+  if(!window._db||!window._firestoreGetDoc||!window._firestoreDoc) return state.discountCodes||{};
   try{
-    const {doc,getDoc}=await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
-    const snap=await getDoc(doc(window._db,'shop','discountCodes'));
+    const snap=await window._firestoreGetDoc(window._firestoreDoc(window._db,'shop','discountCodes'));
     if(snap.exists()){state.discountCodes=snap.data();return snap.data();}
-  }catch(e){}
-  return {};
+  }catch(e){console.warn('loadDiscountCodes failed',e);}
+  return state.discountCodes||{};
 }
 
 async function saveDiscountCodes(codes){
   state.discountCodes=codes;
-  if(!window._db) return;
+  if(!window._db||!window._firestoreSetDoc||!window._firestoreDoc) return;
   try{
-    const {doc,setDoc}=await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
-    await setDoc(doc(window._db,'shop','discountCodes'),codes);
+    await window._firestoreSetDoc(window._firestoreDoc(window._db,'shop','discountCodes'),codes);
   }catch(e){console.warn('saveDiscountCodes failed',e);}
 }
 
@@ -1763,7 +1761,7 @@ updateAdminFab();
 async function initFirebase(){
   try{
     const { initializeApp } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js');
-    const { getFirestore, doc, setDoc, onSnapshot } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+    const { getFirestore, doc, setDoc, getDoc, onSnapshot } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
 
     const firebaseConfig = {
       apiKey: "AIzaSyCqjM28LhfQObB-uWyJtcw1B1JJs-uW6wY",
@@ -1777,10 +1775,11 @@ async function initFirebase(){
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    // Expose helpers so saveShopSettings() can use them
+    // Expose helpers so all functions can use them
     window._db = db;
     window._firestoreDoc = doc;
     window._firestoreSetDoc = setDoc;
+    window._firestoreGetDoc = getDoc;
 
     // Real-time listener — fires instantly whenever admin changes anything
     onSnapshot(doc(db,'shop','settings'), (snap) => {
