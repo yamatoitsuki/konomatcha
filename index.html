@@ -952,12 +952,21 @@ async function applyDiscountCode(){
       const snap=await window._firestoreGetDoc(window._firestoreDoc(window._db,'shop','discountCodes'));
       if(snap.exists()){
         const data=snap.data();
-        state.discountCodes=data; // update cache with fresh data
+        state.discountCodes=data;
         if(data[code]) found=data[code];
+      } else {
+        // Document doesn't exist yet — fall back to in-memory cache
+        const codes=state.discountCodes||{};
+        if(codes[code]) found=codes[code];
       }
-    }catch(e){console.warn('discount fetch failed',e);}
+    }catch(e){
+      console.warn('discount fetch failed',e);
+      // On error fall back to cache
+      const codes=state.discountCodes||{};
+      if(codes[code]) found=codes[code];
+    }
   } else {
-    // Fallback to cache if Firebase not ready
+    // Firebase not ready — use cache
     const codes=state.discountCodes||{};
     if(codes[code]) found=codes[code];
   }
@@ -1024,7 +1033,9 @@ async function recordDiscountUsage(code){
     await window._firestoreSetDoc(ref,data);
     state.discountCodes=data;
     console.log('Discount usage recorded for',code);
-  }catch(e){console.warn('recordDiscountUsage failed',e);}
+  }catch(e){
+    console.error('recordDiscountUsage failed — check Firestore rules:',e);
+  }
 }
 
 function liveTimeErrorMessage(){
