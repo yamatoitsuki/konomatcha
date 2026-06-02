@@ -397,7 +397,7 @@ body.has-review-footer .bottom-bar{bottom:68px}.global-review-footer{position:fi
 
     <div class="summary-card" style="font-size:14px;">
       <div class="summary-row" style="font-size:14px;font-weight:normal;"><span>Total drinks</span><span id="paymentQty">0</span></div>
-      <div class="summary-row" style="font-size:14px;font-weight:normal;"><span>Pickup</span><span id="paymentPickup">--</span></div>
+      <div class="summary-row" style="font-size:14px;font-weight:normal;"><span>Pickup Time</span><span id="paymentPickup">--</span></div>
       <div id="paymentItems"></div>
       <div class="summary-row" id="paymentSubtotalRow" style="display:none;font-size:14px;font-weight:normal;"><span>Subtotal</span><span id="paymentSubtotal">$0.00</span></div>
       <div class="summary-row" id="paymentDiscountRow" style="display:none;color:var(--matcha);font-size:14px;font-weight:normal;"><span id="paymentDiscountLabel">Discount</span><span id="paymentDiscountAmt"></span></div>
@@ -443,7 +443,7 @@ body.has-review-footer .bottom-bar{bottom:68px}.global-review-footer{position:fi
 
     <div class="summary-card" style="font-size:14px;">
       <div class="summary-row" style="font-size:14px;font-weight:normal;"><span>Total drinks</span><span id="finalQty">0</span></div>
-      <div class="summary-row" style="font-size:14px;font-weight:normal;"><span>Pickup</span><span id="finalPickup">--</span></div>
+      <div class="summary-row" style="font-size:14px;font-weight:normal;"><span>Pickup Time</span><span id="finalPickup">--</span></div>
       <div id="finalItems"></div>
       <div class="summary-row" id="finalOriginalRow" style="display:none;font-size:14px;font-weight:normal;"><span>Subtotal</span><span id="finalOriginal">$0.00</span></div>
       <div class="summary-row" id="finalDiscountRow" style="display:none;color:var(--matcha);font-size:14px;font-weight:normal;"><span id="finalDiscountLabel">Discount</span><span id="finalDiscountAmt"></span></div>
@@ -453,7 +453,7 @@ body.has-review-footer .bottom-bar{bottom:68px}.global-review-footer{position:fi
     <div class="step-sub" style="margin-top:14px;text-align:center;">Screenshot this receipt before leaving this page.</div>
   </div>
   <div class="bottom-bar" style="display:flex;flex-direction:column;gap:10px;">
-    <a href="https://wa.me/6591865677?text=I%20have%20made%20payment.%20I%20have%20attached%20screenshot%20of%20my%20receipt.%20Please%20check%20if%20you%20received%20my%20payment.%20Thank%20you." target="_blank" class="btn btn-primary btn-full" style="text-decoration:none;text-align:center;">📱 WhatsApp Me</a>
+    <a id="whatsappMeBtn" href="https://wa.me/6591865677" target="_blank" class="btn btn-primary btn-full" style="text-decoration:none;text-align:center;">📱 WhatsApp Me</a>
     <button class="btn btn-outline btn-full" type="button" onclick="startNewOrder()">Start New Order</button>
   </div>
 </div>
@@ -1427,6 +1427,18 @@ function renderFinal(){
         <span>$${(i.qty*i.price).toFixed(2)}</span>
       </div>
     `).join('');
+  }
+  // Build dynamic WhatsApp message matching receipt
+  const waBtn=safe('whatsappMeBtn');
+  if(waBtn){
+    const rawWA=cartTotal();
+    const discWA=state.discountPercent>0&&state.discountCode;
+    const discAmtWA=discWA?rawWA*state.discountPercent/100:0;
+    const finalAmtWA=discWA?rawWA-discAmtWA:rawWA;
+    const itemsWA=state.cart.map(i=>i.qty+'x '+i.item+' ('+i.milkName+') - $'+(i.qty*i.price).toFixed(2)).join('\n');
+    const discLineWA=discWA?' | Discount: '+state.discountCode+' '+state.discountPercent+'% off -$'+discAmtWA.toFixed(2):'';
+    const msg='Receipt #'+(state.receiptNumber||'')+"\n\nCustomer: "+(state.customerName||'')+"\n+65 "+(state.customerPhone||'')+"\n\nPickup Time: "+state.slot+"\n"+itemsWA+discLineWA+"\n\nTotal: $"+finalAmtWA.toFixed(2)+"\n\nI have made payment. Please check if you received my payment. Thank you.";
+    waBtn.href='https://wa.me/6591865677?text='+encodeURIComponent(msg);
   }
 }
 
