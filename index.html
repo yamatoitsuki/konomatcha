@@ -428,7 +428,18 @@ body.has-review-footer .bottom-bar{bottom:68px}.global-review-footer{position:fi
   </div>
   <div class="flow-content">
     <div class="step-title">Order Submitted</div>
-    <div class="step-sub">Please screenshot this receipt before leaving this page.</div><div class="receipt-customer">Customer: <strong id="finalCustomerName">Customer</strong><br><span style="font-size:14px;color:var(--muted)">Phone: <strong id="finalCustomerPhone" style="color:var(--matcha)">—</strong></span></div>
+
+    <div class="verified final-note" style="margin-bottom:20px;">
+      <div class="final-note-title">Thank you for your support!</div>
+      <div style="font-size:14px;font-weight:normal;line-height:1.7;">
+        Please screenshot your receipt and click the WhatsApp Me button below. Attach the screenshot of your receipt to the message.
+        <br><br>
+        I will reply, <span style="font-weight:800;">"Payment received. Order Confirmed."</span> once I've confirmed to have received payment.
+      </div>
+    </div>
+
+    <div style="font-size:26px;font-weight:800;color:#fff;margin-bottom:8px;font-family:'Playfair Display',serif;" id="finalReceiptNum"></div>
+    <div class="receipt-customer">Customer: <strong id="finalCustomerName" style="color:#fff;font-size:18px;">Customer</strong><br><span style="font-size:15px;color:rgba(255,255,255,0.7)">Phone: <strong id="finalCustomerPhone" style="color:#fff;">—</strong></span></div>
 
     <div class="summary-card" style="font-size:14px;">
       <div class="summary-row" style="font-size:14px;font-weight:normal;"><span>Total drinks</span><span id="finalQty">0</span></div>
@@ -439,19 +450,11 @@ body.has-review-footer .bottom-bar{bottom:68px}.global-review-footer{position:fi
       <div class="summary-row grand-total-row"><span>Grand total</span><span id="finalTotal">$0.00</span></div>
     </div>
 
-    <div class="verified final-note" style="margin-top:20px">
-      <div class="final-note-title">Thank you for your support!</div>
-      Please attach proof of payment and receipt after the WhatsApp Me button brings you to message me.
-      <br><br>
-      Your order will be confirmed and prepared once payment has been verified by the vendor.
-      <br><br>
-      <a href="https://wa.me/6591865677?text=Hello%2C%20I%20have%20completed%20payment%20for%20my%20order%20on%20Kono%20Matcha%27s%20website.%20I%20have%20attached%20screenshots%20of%20my%20proof%20of%20payment%20and%20order%20receipt.%20Thank%20you." target="_blank" class="btn btn-primary btn-full" style="margin-top:16px;text-decoration:none;">
-      📱 WhatsApp Me
-      </a>
-    </div>
+    <div class="step-sub" style="margin-top:14px;text-align:center;">Screenshot this receipt before leaving this page.</div>
   </div>
-  <div class="bottom-bar">
-    <button class="btn btn-primary btn-full" type="button" onclick="startNewOrder()">Start New Order</button>
+  <div class="bottom-bar" style="display:flex;flex-direction:column;gap:10px;">
+    <a href="https://wa.me/6591865677?text=I%20have%20made%20payment.%20I%20have%20attached%20screenshot%20of%20my%20receipt.%20Please%20check%20if%20you%20received%20my%20payment.%20Thank%20you." target="_blank" class="btn btn-primary btn-full" style="text-decoration:none;text-align:center;">📱 WhatsApp Me</a>
+    <button class="btn btn-outline btn-full" type="button" onclick="startNewOrder()">Start New Order</button>
   </div>
 </div>
 
@@ -1394,7 +1397,9 @@ function generateReceiptNumber(){
 function renderFinal(){
   updateFinalCustomerName();
   const titleEl=document.querySelector('#finalScreen .step-title');
-  if(titleEl && state.receiptNumber) titleEl.textContent='Receipt #'+state.receiptNumber;
+  if(titleEl) titleEl.textContent='Order Submitted';
+  const rnEl=safe('finalReceiptNum');
+  if(rnEl && state.receiptNumber) rnEl.textContent='Receipt #'+state.receiptNumber;
   if(safe('finalPickup'))safe('finalPickup').textContent=state.slot||'--';
   if(safe('finalQty'))safe('finalQty').textContent=cartQty();
   const rawF=cartTotal();
