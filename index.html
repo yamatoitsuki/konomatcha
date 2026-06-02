@@ -300,6 +300,11 @@ body.has-review-footer .bottom-bar{bottom:68px}.global-review-footer{position:fi
   }
   #paymentSlotError strong { color: #f07070 !important; }
 
+  /* Payment confirm modal */
+  #paymentConfirmModal > div {
+    background: #1a241c !important;
+  }
+
   /* Admin slot rows */
   .admin-slot-row { color: var(--dark) !important; border-bottom-color: var(--border) !important; }
 
@@ -376,15 +381,15 @@ body.has-review-footer .bottom-bar{bottom:68px}.global-review-footer{position:fi
           </div>
           <div style="display:flex;align-items:flex-start;gap:12px;font-size:14px;">
             <span style="background:var(--matcha);color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;flex-shrink:0;margin-top:1px;">4</span>
-            <span>Select <strong>Choose from Photos</strong> and pick the PayNow QR screenshot</span>
+            <span>Tap <strong>"Import QR"</strong> (OCBC &amp; Standard Chartered) or <strong>"Photo Library"</strong> (POSB/DBS) — then pick the PayNow QR screenshot</span>
           </div>
           <div style="display:flex;align-items:flex-start;gap:12px;font-size:14px;">
             <span style="background:var(--matcha);color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;flex-shrink:0;margin-top:1px;">5</span>
-            <span>Enter the total amount and complete payment</span>
+            <span>Pay the total amount shown above</span>
           </div>
           <div style="display:flex;align-items:flex-start;gap:12px;font-size:14px;">
             <span style="background:var(--matcha);color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;flex-shrink:0;margin-top:1px;">6</span>
-            <span>Screenshot your payment confirmation and click <strong>Submit Order</strong> below</span>
+            <span>Screenshot the PayNow transaction and tap <strong>"I Have Made Payment"</strong> below</span>
           </div>
         </div>
       </div>
@@ -401,7 +406,19 @@ body.has-review-footer .bottom-bar{bottom:68px}.global-review-footer{position:fi
   </div>
   <div id="paymentSlotError" style="display:none;margin:0 24px 12px;background:#fff0f0;border:1.5px solid #e8a0a0;border-radius:14px;padding:14px 16px;color:#c0392b;font-size:13px;line-height:1.6;font-weight:500;"></div>
   <div class="bottom-bar">
-    <button class="btn btn-primary btn-full" type="button" onclick="submitOrder()">Submit Order</button>
+    <button class="btn btn-primary btn-full" type="button" onclick="confirmPaymentMade()">I Have Made Payment</button>
+  </div>
+</div>
+
+<!-- Payment confirmation modal -->
+<div id="paymentConfirmModal" style="display:none;position:fixed;inset:0;z-index:20000;background:rgba(0,0,0,0.55);align-items:center;justify-content:center;padding:24px;">
+  <div style="background:var(--cream);border-radius:20px;padding:28px 24px;width:min(360px,100%);box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+    <div style="font-family:'Playfair Display',serif;font-size:20px;font-weight:800;color:var(--matcha);margin-bottom:12px;text-align:center;">Payment Confirmation</div>
+    <div style="font-size:15px;line-height:1.6;text-align:center;margin-bottom:24px;color:var(--fg);">Have you completed your PayNow payment?</div>
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <button type="button" onclick="paymentConfirmYes()" style="width:100%;padding:16px;border-radius:999px;border:none;background:var(--matcha);color:#fff;font-family:'DM Sans';font-weight:800;font-size:16px;cursor:pointer;">Yes, I have paid</button>
+      <button type="button" onclick="paymentConfirmNo()" style="width:100%;padding:16px;border-radius:999px;border:1.5px solid var(--border);background:transparent;color:var(--fg);font-family:'DM Sans';font-weight:700;font-size:16px;cursor:pointer;">No, go back</button>
+    </div>
   </div>
 </div>
 
@@ -582,6 +599,12 @@ function goTo(id){
 
   renderCart();
   updateAdminFab();
+  // Auto-scroll new screen to top
+  setTimeout(()=>{
+    const el=document.getElementById(id);
+    if(el){ const fc=el.querySelector('.flow-content'); if(fc)fc.scrollTop=0; }
+    window.scrollTo({top:0,behavior:'smooth'});
+  },50);
 }
 
 function goBack(){
@@ -601,6 +624,12 @@ function goBack(){
 
   renderCart();
   updateAdminFab();
+  // Auto-scroll back screen to top
+  setTimeout(()=>{
+    const el=document.getElementById(prev);
+    if(el){ const fc=el.querySelector('.flow-content'); if(fc)fc.scrollTop=0; }
+    window.scrollTo({top:0,behavior:'smooth'});
+  },50);
 }
 
 
@@ -1249,6 +1278,29 @@ function renderPayment(){
       </div>
     `).join('');
   }
+}
+
+function confirmPaymentMade(){
+  const modal=document.getElementById('paymentConfirmModal');
+  if(modal) modal.style.display='flex';
+}
+
+function paymentConfirmYes(){
+  const modal=document.getElementById('paymentConfirmModal');
+  if(modal) modal.style.display='none';
+  submitOrder();
+}
+
+function paymentConfirmNo(){
+  const modal=document.getElementById('paymentConfirmModal');
+  if(modal) modal.style.display='none';
+  // Scroll to top of payment page
+  const screen=document.getElementById('paymentScreen');
+  if(screen){
+    const fc=screen.querySelector('.flow-content');
+    if(fc) fc.scrollTo({top:0,behavior:'smooth'});
+  }
+  window.scrollTo({top:0,behavior:'smooth'});
 }
 
 function submitOrder(){
